@@ -4,11 +4,13 @@ go 1.18
 
 require (
 	github.com/lucasb-eyer/go-colorful v1.2.0
-	github.com/r3labs/sse/v2 v2.8.0
 )
 
 require (
 	github.com/aquilax/go-perlin v1.1.0 // indirect
+	github.com/diggs/glog v0.0.0-20140914015956-5921588b9f17 // indirect
+	github.com/diggs/go-backoff v0.0.0-20170517084504-f7b9f7e6b83b // indirect
+	github.com/diggs/go-http-stream-reader v0.0.0-20150320064907-c0d6dad6dd0e // indirect
 	github.com/disintegration/imaging v1.6.2 // indirect
 	github.com/fsnotify/fsnotify v1.4.7 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect

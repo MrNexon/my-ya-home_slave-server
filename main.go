@@ -2,15 +2,15 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
-	"github.com/r3labs/sse/v2"
 	"log"
 	"net"
+	"smartHome/stream"
 	"time"
 )
 
 type Event struct {
 	Id         string     `json:"id"`
+	Sync       bool       `json:"sync"`
 	Capability string     `json:"capability"`
 	Value      EventValue `json:"value"`
 }
@@ -28,8 +28,6 @@ type LedData struct {
 }
 
 func main() {
-	client := sse.NewClient("https://iot.mtdl.ru/events")
-
 	ledCh := make(chan LedData)
 	go ledBus(ledCh)
 
@@ -39,22 +37,48 @@ func main() {
 	ledStrip := NewLed()
 	ac := newAC()
 
-	client.Subscribe("messages", func(msg *sse.Event) {
-		// Got some data!
-		var event Event
-		_ = json.Unmarshal(msg.Data, &event)
+	events := make(chan Event)
+	go connectSSE(events)
 
-		log.Printf("%v", event)
+	for {
+		event := <-events
+
+		//log.Printf("%v", event)
 
 		if event.Id == "led_strip" {
 			handleLed(event, ledStrip)
-			go ledStrip.render(ledCh)
+			if !event.Sync {
+				go ledStrip.render(ledCh)
+			}
 		} else if event.Id == "ac" {
 			handleIR(event, ac)
-			acCh <- ac.render()
+			if !event.Sync {
+				acCh <- ac.render()
+			}
 		}
-	})
+	}
 
+}
+
+func connectSSE(events chan Event) {
+	log.Println("Connecting to event server")
+	s := stream.NewStream("https://iot.mtdl.ru/events")
+	s.Connect()
+	for {
+		select {
+		case data := <-s.Data:
+			dataStr := string(data)
+			if dataStr != ":ping" {
+				var event Event
+				_ = json.Unmarshal(data, &event)
+				events <- event
+			}
+		case err := <-s.Error:
+			log.Printf("Error: %v", err)
+		case <-s.Exit:
+			log.Println("Stream closed.")
+		}
+	}
 }
 
 func connectLed(ch chan *net.UDPConn) {
@@ -75,7 +99,7 @@ func ledBus(ch chan LedData) {
 	connCh := make(chan *net.UDPConn)
 	go connectLed(connCh)
 	conn := <-connCh
-	fmt.Printf("The LED connected is %s\n", conn.RemoteAddr().String())
+	log.Printf("The LED connected is %s\n", conn.RemoteAddr().String())
 	<-ch
 	for {
 		data := <-ch
@@ -125,7 +149,7 @@ func acBus(ch chan []byte) {
 	connCh := make(chan *net.UDPConn)
 	go connectAC(connCh)
 	conn := <-connCh
-	fmt.Printf("The AC connected is %s\n", conn.RemoteAddr().String())
+	log.Printf("The AC connected is %s\n", conn.RemoteAddr().String())
 	<-ch
 	for {
 		data := <-ch
@@ -139,7 +163,7 @@ func handleLed(event Event, ledStrip *Led) {
 	case "devices.capabilities.on_off":
 		switch v := event.Value.Value.(type) {
 		case bool:
-			ledStrip.setState(v)
+			ledStrip.setState(v, event.Sync)
 			break
 		default:
 			log.Printf("Value invalid (%v_%v_%v_%v)", event.Id, event.Capability, event.Value.EventType, event.Value.Value)
@@ -148,16 +172,16 @@ func handleLed(event Event, ledStrip *Led) {
 	case "devices.capabilities.color_setting":
 		switch v := event.Value.Value.(type) {
 		case string:
-			ledStrip.setScene(v)
+			ledStrip.setScene(v, event.Sync)
 			break
 		case float64:
-			ledStrip.setColor(v)
+			ledStrip.setColor(v, event.Sync)
 		}
 	case "devices.capabilities.range":
 		if event.Value.EventType == "brightness" {
 			switch v := event.Value.Value.(type) {
 			case float64:
-				ledStrip.setBrightness(v)
+				ledStrip.setBrightness(v, event.Sync)
 				break
 			}
 		}
@@ -170,7 +194,7 @@ func handleIR(event Event, ac *AC) {
 	case "devices.capabilities.on_off":
 		switch v := event.Value.Value.(type) {
 		case bool:
-			ac.setState(v)
+			ac.setState(v, event.Sync)
 			break
 		default:
 			log.Printf("Value invalid (%v_%v_%v_%v)", event.Id, event.Capability, event.Value.EventType, event.Value.Value)
@@ -180,7 +204,7 @@ func handleIR(event Event, ac *AC) {
 		if event.Value.EventType == "temperature" {
 			switch v := event.Value.Value.(type) {
 			case float64:
-				ac.setTemp(v)
+				ac.setTemp(v, event.Sync)
 				break
 			}
 		}
@@ -189,7 +213,7 @@ func handleIR(event Event, ac *AC) {
 		if event.Value.EventType == "thermostat" {
 			switch v := event.Value.Value.(type) {
 			case string:
-				ac.setMode(v)
+				ac.setMode(v, event.Sync)
 				break
 			}
 		}
@@ -197,17 +221,9 @@ func handleIR(event Event, ac *AC) {
 		if event.Value.EventType == "fan_speed" {
 			switch v := event.Value.Value.(type) {
 			case string:
-				ac.setFanSpeed(v)
+				ac.setFanSpeed(v, event.Sync)
 				break
 			}
 		}
 	}
-}
-
-func calcColor(color int) (red, green, blue uint8) {
-	blue = uint8(color & 0xFF)
-	green = uint8((color >> 8) & 0xFF)
-	red = uint8((color >> 16) & 0xFF)
-
-	return red, green, blue
 }

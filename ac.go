@@ -20,17 +20,17 @@ func newAC() *AC {
 	}
 }
 
-func (l *AC) setState(value bool) {
+func (l *AC) setState(value bool, sync bool) {
 	log.Printf("Set ac state: %v", value)
 	l.State = value
 }
 
-func (l *AC) setTemp(value float64) {
+func (l *AC) setTemp(value float64, sync bool) {
 	log.Printf("Set ac temp: %v", value)
 	l.Temp = value
 }
 
-func (l *AC) setFanSpeed(value string) {
+func (l *AC) setFanSpeed(value string, sync bool) {
 	switch value {
 	case "low":
 		l.FanSpeed = 0
@@ -47,7 +47,7 @@ func (l *AC) setFanSpeed(value string) {
 	log.Printf("Set ac fan speed: %v", l.FanSpeed)
 }
 
-func (l *AC) setMode(value string) {
+func (l *AC) setMode(value string, sync bool) {
 	switch value {
 	case "cool":
 		l.Thermostat = 1

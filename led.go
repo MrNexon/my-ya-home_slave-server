@@ -41,7 +41,7 @@ func NewLed() *Led {
 	}
 }
 
-func (l *Led) setState(value bool) {
+func (l *Led) setState(value bool, sync bool) {
 	log.Printf("Set led state: %v", value)
 	l.State = value
 	if l.State {
@@ -50,31 +50,52 @@ func (l *Led) setState(value bool) {
 		l.toBrightness = 0
 	}
 
-	l.tBrightness = 0
-	l.fromBrightness = l.currentBrightness
+	if !sync {
+		l.tBrightness = 0
+		l.fromBrightness = l.currentBrightness
+	} else {
+		l.tBrightness = 1
+		l.fromBrightness = l.toBrightness
+		l.currentBrightness = l.toBrightness
+	}
 }
 
-func (l *Led) setBrightness(value float64) {
+func (l *Led) setBrightness(value float64, sync bool) {
 	log.Printf("Set led brightness: %v", value)
 	l.Brightness = (value / 100) * 255
 	if l.State {
 		l.toBrightness = l.Brightness
 	}
 
-	l.tBrightness = 0
-	l.fromBrightness = l.currentBrightness
+	if !sync {
+		l.tBrightness = 0
+		l.fromBrightness = l.currentBrightness
+	} else {
+		l.tBrightness = 1
+		l.fromBrightness = l.toBrightness
+		l.currentBrightness = l.toBrightness
+	}
 }
 
-func (l *Led) setScene(value string) {
+func (l *Led) setScene(value string, sync bool) {
 	l.Scene = value
 }
 
-func (l *Led) setColor(value float64) {
-	log.Printf("Set led color: %v", value)
-	r, g, b := parseColor(int(value))
-	l.Color = colorful.Color{R: r, G: g, B: b}
-	l.tColor = 0
-	l.fromColor = l.currentColor
+func (l *Led) setColor(value float64, sync bool) {
+	if sync {
+		log.Printf("Sync led color: %v", value)
+		r, g, b := parseColor(int(value))
+		l.Color = colorful.Color{R: r, G: g, B: b}
+		l.fromColor = l.Color
+		l.currentColor = l.Color
+		l.tColor = 1
+	} else {
+		log.Printf("Set led color: %v", value)
+		r, g, b := parseColor(int(value))
+		l.Color = colorful.Color{R: r, G: g, B: b}
+		l.tColor = 0
+		l.fromColor = l.currentColor
+	}
 }
 
 func (l *Led) render(ch chan LedData) {
